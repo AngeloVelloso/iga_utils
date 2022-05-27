@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: cp1252 -*-
 
 import os
 import glob
 import inspect
+import re
 import pandas as pd
 from json import loads, load
 from mechanize import Browser, Request
@@ -34,7 +35,7 @@ class IgaCloud:
         r = nav.open(rqst)
         return r.code
 
-# Administração -> Cobrança
+# Administra��o -> Cobran�a
     def get_adm_cobranca(self, codigo_filial, flag_unidade):
         nav = self.br
         self.definir_filial_iga_cloud(nav, codigo_filial)
@@ -77,7 +78,7 @@ class IgaCloud:
 
         return df_data
 
-# Relatórios -> Administração -> Cobrança
+# Relat�rios -> Administra��o -> Cobran�a
     def get_rel_cobranca(self, codigo_filial, flag_unidade):
         nav = self.br
         self.definir_filial_iga_cloud(nav, codigo_filial)
@@ -124,8 +125,8 @@ class IgaCloud:
         return df_data
 
     def juntar_cobranca(self, adm_file,rel_file):
-        # Seleção das colunas do 'Relatórios'>Administração>Cobrança e eliminação de duplicidades
-        # Esse relatório é menos preciso, todavia possui informações que faltam no 'Administração>Cobrança', 
+        # Sele��o das colunas do 'Relat�rios'>Administra��o>Cobran�a e elimina��o de duplicidades
+        # Esse relat�rio � menos preciso, todavia possui informações que faltam no 'Administração>Cobrança', 
         #      com isso, selecionamos os dados e complementamos as informações naquele relatório.
         rel_filtro = rel_file.filter(items=['chave_unica', 'CodigoAluno', 
                                             'Matricula', 'Usuario', 'Data', 'Curso']
@@ -144,7 +145,7 @@ class IgaCloud:
         merge_da_cobranca.rename(columns={ 'DataPagamento': 'DataRegistro', 'Data': 'DataPagamento'}, inplace=True)
         # .. Extração Ano, Mês e Dia para melhorar filtro
         merge_da_cobranca['Ano'] = merge_da_cobranca['DataPagamento'].map(lambda x: str(x.year))
-        merge_da_cobranca['Mês'] = merge_da_cobranca['DataPagamento'].map(lambda x: str(x.month))
+        merge_da_cobranca['M�s'] = merge_da_cobranca['DataPagamento'].map(lambda x: str(x.month))
         merge_da_cobranca['Dia'] = merge_da_cobranca['DataPagamento'].map(lambda x: str(x.day))
         # .. Deleta coluna chave_unica
         del(merge_da_cobranca['chave_unica'])
@@ -152,10 +153,8 @@ class IgaCloud:
         return merge_da_cobranca  
 
     def faz_rel_cobranca(self):  
-        adm_cob = pd.concat([self.get_adm_cobranca(491, 'Porto Velho'), 
-                            self.get_adm_cobranca(508, 'Macapa')]).reset_index(drop=True)
-        rel_cob = pd.concat([self.get_rel_cobranca(491, 'Porto Velho'), 
-                            self.get_rel_cobranca(508, 'Macapa')]).reset_index(drop=True)
+        adm_cob = self.get_adm_cobranca(491, 'Porto Velho')
+        rel_cob = self.get_rel_cobranca(491, 'Porto Velho')
          
         return self.juntar_cobranca(adm_cob,rel_cob)
 
@@ -199,8 +198,7 @@ class IgaCloud:
         return df_data
 
     def faz_rel_dividas(self):  
-        rel_div = pd.concat([self.get_rel_dividas(491, 'Porto Velho'), 
-                            self.get_rel_dividas(508, 'Macapa')]).reset_index(drop=True)
+        rel_div = self.get_rel_dividas(491, 'Porto Velho')
          
         return rel_div[rel_div['Conceito'] != 'Juro']
 
@@ -242,8 +240,7 @@ class IgaCloud:
         return df_data
 
     def faz_rel_cobros(self):  
-        rel_cobros = pd.concat([self.get_rel_cobros(491, 'Porto Velho'), 
-                            self.get_rel_cobros(508, 'Macapa')]).reset_index(drop=True)
+        rel_cobros = self.get_rel_cobros(491, 'Porto Velho')
          
         return rel_cobros[rel_cobros['Conceito'] != 'Juro']
 
@@ -289,12 +286,11 @@ class IgaCloud:
         return df_data
 
     def faz_rel_det_alunos_curso(self):  
-        rel_det_alunos_curso = pd.concat([self.get_rel_det_alunos_curso(491, 'Porto Velho'), 
-                            self.get_rel_det_alunos_curso(508, 'Macapa')]).reset_index(drop=True)
+        rel_det_alunos_curso = self.get_rel_det_alunos_curso(491, 'Porto Velho')
          
         return rel_det_alunos_curso
 
-# Relatórios -> Acadêmicos -> Detalhes de Alunos por Curso
+# Relatórios -> Acadêmicos -> Acad. Frequências
     def get_rel_frequencias(self, codigo_filial, flag_unidade):
         nav = self.br
         self.definir_filial_iga_cloud(nav, codigo_filial)
@@ -327,17 +323,28 @@ class IgaCloud:
         json_data = loads(r.read())
 
         df_data = pd.DataFrame(json_data['aaData'])
-        #df_data.columns = ['CodigoAluno', 'Matricula', 'Nome', 'Curso', 
-        #                    'Turma', 'Ciclo', 'DataMatricula', 'Estado',
-        #                    'Telefone', 'DataBaixa' ] 
+        df_data.columns = ['CodigoAluno', 'Nome', 'Documento', 'Telefone', 
+                           'Disciplina', 'CodigoTurma', 'CodigoCiclo',
+                           'NomeTurma', 'DataAula', 'HorarioAula', 
+                           'SalaAula', 'Professor', 'Presente'] 
 
-        #df_data['DataMatricula'] = pd.to_datetime(df_data['DataMatricula'], format='%d/%m/%Y', errors='coerce')
-        #df_data['DataBaixa'] = pd.to_datetime(df_data['DataBaixa'], format='%d/%m/%Y', errors='coerce')
+        df_data['DataAula'] = pd.to_datetime(df_data['DataAula'], format='%d/%m/%Y', errors='coerce')
+
+        # Define o turno a partir da hora inicial
+        def info_turno(x):
+            hora_inicio = int(re.findall('^\d{2}',x)[0])
+            return 'Manha' if hora_inicio in range(0,12) else 'Tarde' if hora_inicio in range(12,18) else 'Noite'
+        df_data['Turno'] = df_data['HorarioAula'].apply(info_turno)
 
         # Inclui informação da unidade
         df_data['Unidade'] = flag_unidade
 
         return df_data
+
+    def faz_rel_acad_frequencia(self):  
+        rel_acad_frequencia = self.get_rel_frequencias(491, 'Porto Velho')
+         
+        return rel_acad_frequencia
 
 if __name__ == '__main__':
     pass

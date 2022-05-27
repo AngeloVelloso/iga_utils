@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: cp1252 -*-
 
 import os
 import glob
 import inspect
 import gspread as gs
-from gspread_dataframe import set_with_dataframe
+from gspread_dataframe import set_with_dataframe, get_as_dataframe
 
 def obtem_chave_api():
     diretorio = os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))
@@ -24,3 +24,11 @@ def grava_dados(key, df):
 
     set_with_dataframe(worksheet, df)
     return None
+
+def recupera_dados(key):
+    gc = gs.service_account(filename=obtem_chave_api())
+    sh = gc.open_by_key(key)
+    worksheet = sh.get_worksheet(0) 
+
+    df = get_as_dataframe(worksheet)
+    return df
